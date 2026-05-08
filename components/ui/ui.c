@@ -1,7 +1,11 @@
+#include "lvgl.h"
 #include "ui.h"
 #include "lcd_sta.h"
 #include "esp_timer.h"
-#include "lvgl.h"
+
+lv_obj_t *g_label_time;    // LVGL标签对象：显示时间（2025-xx-xx xx:xx:xx）
+lv_obj_t *g_label_temp;    // LVGL标签对象：显示温度（xx°C）
+lv_obj_t *g_label_weather; // LVGL标签对象：显示城市+天气
 
  void lv_display_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
     // 取出需要刷新的区域坐标
@@ -49,4 +53,41 @@ void lvgl_init(void) {
     esp_timer_handle_t timer;
     esp_timer_create(&args, &timer);
     esp_timer_start_periodic(timer, 1000);  // 1000us = 1ms
+}
+
+void create_ui(void) {
+    // 清空当前屏幕
+    lv_obj_clean(lv_screen_active());
+    // 设置屏幕背景为黑色
+    lv_obj_set_style_bg_color(lv_screen_active(), lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(lv_screen_active(), LV_OPA_COVER, 0);
+
+    // 创建一个容器，用于排版三个标签
+    lv_obj_t *cont = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(cont, 240, 240);  // 容器大小=屏幕大小
+    lv_obj_center(cont);             // 居中显示
+    lv_obj_set_flex_flow(cont, LV_FLEX_FLOW_COLUMN);  // 垂直布局
+    // 水平/垂直/间距都居中
+    lv_obj_set_flex_align(cont, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    // 容器透明无边框
+    lv_obj_set_style_bg_opa(cont, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_opa(cont, LV_OPA_TRANSP, 0);
+
+    // ========== 创建时间标签 ==========
+    g_label_time = lv_label_create(cont);
+    lv_label_set_text(g_label_time, "同步时间中...");
+    lv_obj_set_style_text_font(g_label_time, &lv_font_simsun_han_ht_16, 0);  // 设置中文字体
+    lv_obj_set_style_text_color(g_label_time, lv_color_white(), 0);  // 白色文字
+
+    // ========== 创建温度标签 ==========
+    g_label_temp = lv_label_create(cont);
+    lv_label_set_text(g_label_temp, "--°C");
+    lv_obj_set_style_text_font(g_label_temp, &lv_font_simsun_han_ht_16, 0);
+    lv_obj_set_style_text_color(g_label_temp, lv_color_white(), 0);
+
+    // ========== 创建天气标签 ==========
+    g_label_weather = lv_label_create(cont);
+    lv_label_set_text(g_label_weather, "获取天气中...");
+    lv_obj_set_style_text_font(g_label_weather, &lv_font_simsun_han_ht_16, 0);
+    lv_obj_set_style_text_color(g_label_weather, lv_color_white(), 0);
 }
