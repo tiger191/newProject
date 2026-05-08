@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "lcd_sta.h"
+#include "esp_timer.h"
 #include "lvgl.h"
 
  void lv_display_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {

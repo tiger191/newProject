@@ -5,6 +5,7 @@
 #include "nvs_flash.h"
 #include "wifi_sta.h"
 #include "lcd_sta.h"
+#include "ui.h"
 #include "lvgl.h"
 
 static const char *TAG = "main";

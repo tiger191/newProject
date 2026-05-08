@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include <stddef.h> 
 
 void lcd_init(void);
 void lcd_send_cmd(uint8_t cmd);

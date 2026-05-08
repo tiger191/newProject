@@ -37,13 +37,13 @@ static spi_device_handle_t spi_dev;
 //=============================================================================
 // 你原来的正确底层函数
 //=============================================================================
-static void lcd_send_cmd(uint8_t cmd) {
+void lcd_send_cmd(uint8_t cmd) {
     gpio_set_level(LCD_PIN_DC, 0);
     spi_transaction_t t = {.length = 8, .tx_buffer = &cmd};
     spi_device_transmit(spi_dev, &t);
 }
 
-static void lcd_send_data(const uint8_t *data, size_t len) {
+void lcd_send_data(const uint8_t *data, size_t len) {
     gpio_set_level(LCD_PIN_DC, 1);
     spi_transaction_t t = {.length = len*8, .tx_buffer = data};
     spi_device_transmit(spi_dev, &t);
