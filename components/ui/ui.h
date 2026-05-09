@@ -2,6 +2,6 @@
 #define UI_H
 
 void lvgl_init(void);
-void create_ui(void)
+void create_ui(void);
 
 #endif

@@ -10,6 +10,8 @@
 
 static const char *TAG = "main";
 
+extern lv_obj_t *g_label_time;
+
 
 void app_main(void)
 {
@@ -26,9 +28,19 @@ void app_main(void)
 
     lvgl_init(); 
 
+    create_ui(); 
+
     wifi_sta_init();      // 启动WiFi
 
     while (1) {
+        // 每秒更新一次时间显示
+        static uint32_t last_tick = 0;
+        if (lv_tick_get() - last_tick >= 1000) {
+            last_tick = lv_tick_get();
+            //update_time_str();                  // 更新时间字符串
+        }
+
+        lv_timer_handler();  // LVGL内核处理（必须调用）
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }

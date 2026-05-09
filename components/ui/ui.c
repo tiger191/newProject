@@ -1,7 +1,9 @@
-#include "lvgl.h"
+
 #include "ui.h"
 #include "lcd_sta.h"
 #include "esp_timer.h"
+#include "lvgl.h"
+#include "lv_font_simsun_han_ht_16.h"
 
 lv_obj_t *g_label_time;    // LVGL标签对象：显示时间（2025-xx-xx xx:xx:xx）
 lv_obj_t *g_label_temp;    // LVGL标签对象：显示温度（xx°C）
@@ -91,3 +93,4 @@ void create_ui(void) {
     lv_obj_set_style_text_font(g_label_weather, &lv_font_simsun_han_ht_16, 0);
     lv_obj_set_style_text_color(g_label_weather, lv_color_white(), 0);
 }
+
