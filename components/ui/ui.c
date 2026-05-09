@@ -2,12 +2,11 @@
 #include "ui.h"
 #include "lcd_sta.h"
 #include "esp_timer.h"
-#include "lvgl.h"
 #include "lv_font_simsun_han_ht_16.h"
 
-lv_obj_t *g_label_time;    // LVGL标签对象：显示时间（2025-xx-xx xx:xx:xx）
-lv_obj_t *g_label_temp;    // LVGL标签对象：显示温度（xx°C）
-lv_obj_t *g_label_weather; // LVGL标签对象：显示城市+天气
+static lv_obj_t *s_label_time;    // LVGL标签对象：显示时间（2025-xx-xx xx:xx:xx）
+static lv_obj_t *s_label_temp;    // LVGL标签对象：显示温度（xx°C）
+static lv_obj_t *s_label_weather; // LVGL标签对象：显示城市+天气
 
  void lv_display_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
     // 取出需要刷新的区域坐标
@@ -76,21 +75,24 @@ void create_ui(void) {
     lv_obj_set_style_border_opa(cont, LV_OPA_TRANSP, 0);
 
     // ========== 创建时间标签 ==========
-    g_label_time = lv_label_create(cont);
-    lv_label_set_text(g_label_time, "同步时间中...");
-    lv_obj_set_style_text_font(g_label_time, &lv_font_simsun_han_ht_16, 0);  // 设置中文字体
-    lv_obj_set_style_text_color(g_label_time, lv_color_white(), 0);  // 白色文字
+    s_label_time = lv_label_create(cont);
+    lv_label_set_text(s_label_time, "同步时间中...");
+    lv_obj_set_style_text_font(s_label_time, &lv_font_simsun_han_ht_16, 0);  // 设置中文字体
+    lv_obj_set_style_text_color(s_label_time, lv_color_white(), 0);  // 白色文字
 
     // ========== 创建温度标签 ==========
-    g_label_temp = lv_label_create(cont);
-    lv_label_set_text(g_label_temp, "--°C");
-    lv_obj_set_style_text_font(g_label_temp, &lv_font_simsun_han_ht_16, 0);
-    lv_obj_set_style_text_color(g_label_temp, lv_color_white(), 0);
+    s_label_temp = lv_label_create(cont);
+    lv_label_set_text(s_label_temp, "--°C");
+    lv_obj_set_style_text_font(s_label_temp, &lv_font_simsun_han_ht_16, 0);
+    lv_obj_set_style_text_color(s_label_temp, lv_color_white(), 0);
 
     // ========== 创建天气标签 ==========
-    g_label_weather = lv_label_create(cont);
-    lv_label_set_text(g_label_weather, "获取天气中...");
-    lv_obj_set_style_text_font(g_label_weather, &lv_font_simsun_han_ht_16, 0);
-    lv_obj_set_style_text_color(g_label_weather, lv_color_white(), 0);
+    s_label_weather = lv_label_create(cont);
+    lv_label_set_text(s_label_weather, "获取天气中...");
+    lv_obj_set_style_text_font(s_label_weather, &lv_font_simsun_han_ht_16, 0);
+    lv_obj_set_style_text_color(s_label_weather, lv_color_white(), 0);
 }
 
+lv_obj_t *get_label_time(){
+    return s_label_time;
+}
