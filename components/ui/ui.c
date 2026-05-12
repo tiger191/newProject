@@ -96,3 +96,11 @@ void create_ui(void) {
 lv_obj_t *get_label_time(){
     return s_label_time;
 }
+
+lv_obj_t *get_label_temp(){
+    return s_label_temp;
+}
+
+lv_obj_t *get_label_weather(){
+    return s_label_weather;
+}
