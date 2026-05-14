@@ -9,6 +9,8 @@
 #include "lvgl.h"
 #include "time_sta.h"
 #include "weather.h"
+#include "mic_sta.h"
+#include "spk_sta.h"
 
 static const char *TAG = "main";
 
@@ -23,17 +25,35 @@ void app_main(void)
 
     ESP_LOGI(TAG, "System start...");
 
+    // 初始化外设
     lcd_init();           // 初始化屏幕 + LVGL
-
     lvgl_init(); 
-
     create_ui(); 
 
     wifi_sta_init();      // 启动WiFi
 
+
+    ret = init_mic();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "麦克风初始化失败: %s", esp_err_to_name(ret));
+    } else {
+        ESP_LOGI(TAG, "麦克风初始化成功");
+        // 可选：测试麦克风是否能读取到数据
+        xTaskCreate(test_mic_read, "mic_test", 4096, NULL, 2, NULL);
+    }
+
+    ret = init_spk();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "扬声器初始化失败: %s", esp_err_to_name(ret));
+    } else {
+        ESP_LOGI(TAG, "扬声器初始化成功");
+        // 启动麦克风→扬声器回传
+        start_mic_to_spk();
+    }
+
     // 等待WiFi连接成功（最多等待10秒：100*100ms）
     int wait = 0;
-    while (wait < 100 && !wifi_sta_is_connected()) {
+    while (wait< 100 && !wifi_sta_is_connected()) {
         vTaskDelay(pdMS_TO_TICKS(100));
         wait++;
     }
@@ -53,7 +73,7 @@ void app_main(void)
         xTaskCreate(weather_task, "weather", 10240, NULL, 2, NULL);
     }
 
-    while (1) {
+    while (1) { 
         // 每秒更新一次时间显示
         static uint32_t last_tick = 0;
         if (lv_tick_get() - last_tick >= 1000) {
@@ -62,7 +82,7 @@ void app_main(void)
             lv_label_set_text(get_label_time(), get_time_str());  // 更新屏幕文字
         }
 
-                // 天气数据就绪 → 更新天气/温度显示
+        // 天气数据就绪 → 更新天气/温度显示
         if (get_weather_ok()) {
             lv_label_set_text(get_label_temp(), get_temp_str());
             lv_label_set_text(get_label_weather(), get_weather_str());
