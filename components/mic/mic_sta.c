@@ -60,9 +60,9 @@ void test_mic_read(void *arg)
     {
         if (i2s_channel_read(mic_rx_handle, buf, sizeof(buf), &bytes_read, 100) == ESP_OK)
         {
-            int16_t raw = (int16_t)(buf[0] >> 16);
-            int16_t clean = (abs(raw) < NOISE_FLOOR) ? 0 : raw;
-            ESP_LOGI(TAG, "raw: %d | clean: %d", raw, clean);
+            //int16_t raw = (int16_t)(buf[0] >> 16);
+            //int16_t clean = (abs(raw) < NOISE_FLOOR) ? 0 : raw;
+            //ESP_LOGI(TAG, "raw: %d | clean: %d", raw, clean);
         }
         vTaskDelay(pdMS_TO_TICKS(100));
     }

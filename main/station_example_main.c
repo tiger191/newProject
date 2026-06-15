@@ -11,6 +11,7 @@
 #include "weather.h"
 #include "mic_sta.h"
 #include "spk_sta.h"
+#include "wakeword_sta.h"
 
 static const char *TAG = "main";
 
@@ -48,8 +49,10 @@ void app_main(void)
     } else {
         ESP_LOGI(TAG, "扬声器初始化成功");
         // 启动麦克风→扬声器回传
-        start_mic_to_spk();
+        // start_mic_to_spk();
     }
+
+    wakeword_init(); 
 
     // 等待WiFi连接成功（最多等待10秒：100*100ms）
     int wait = 0;

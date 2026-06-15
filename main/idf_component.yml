@@ -9,3 +9,4 @@ dependencies:
     - if: target in [esp32p4, esp32h2]
   lvgl/lvgl: ^9.2.2
   espressif/cjson: ^1.7.19
+  espressif/esp-sr: ^1.9.5
