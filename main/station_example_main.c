@@ -17,6 +17,7 @@ static const char *TAG = "main";
 
 void app_main(void)
 {
+    ESP_LOGI(TAG, "启动时剩余堆: %d bytes", esp_get_free_heap_size());
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -34,16 +35,16 @@ void app_main(void)
     wifi_sta_init();      // 启动WiFi
 
 
-    ret = init_mic();
+    ret = init_mic(16000, 1, 16);// 16kHz, 单声道, 16位
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "麦克风初始化失败: %s", esp_err_to_name(ret));
-    } else {
-        ESP_LOGI(TAG, "麦克风初始化成功");
-        // 可选：测试麦克风是否能读取到数据
-        xTaskCreate(test_mic_read, "mic_test", 4096, NULL, 2, NULL);
     }
+    ESP_LOGI(TAG, "麦克风初始化成功");
+    // 可选：测试麦克风是否能读取到数据
+    //xTaskCreate(test_mic_read, "mic_test", 4096, NULL, 2, NULL);
 
-    ret = init_spk();
+
+    ret = init_spk(16000, 1, 16);// 16kHz, 单声道, 16位
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "扬声器初始化失败: %s", esp_err_to_name(ret));
     } else {
@@ -51,8 +52,6 @@ void app_main(void)
         // 启动麦克风→扬声器回传
         // start_mic_to_spk();
     }
-
-    wakeword_init(); 
 
     // 等待WiFi连接成功（最多等待10秒：100*100ms）
     int wait = 0;
@@ -71,10 +70,40 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(100));
             wait++;
         }
+        
+        ESP_LOGI(TAG, "开始获取天气（内存检查）...");
+        ESP_LOGI(TAG, "  剩余堆: %d bytes", esp_get_free_heap_size());
+        ESP_LOGI(TAG, "  PSRAM: %d bytes", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
 
-        // 2. 创建独立任务获取天气（优先级2，堆栈10KB）
-        xTaskCreate(weather_task, "weather", 10240, NULL, 2, NULL);
+        // 创建独立任务获取天气（增加堆栈到16KB）
+        xTaskCreate(weather_task, "weather", 16384, NULL, 2, NULL);
+
+        // 等待天气获取完成（最多30秒）
+        wait = 0;
+        while (wait < 300 && !get_weather_ok()) {
+            vTaskDelay(pdMS_TO_TICKS(100));
+            wait++;
+            
+            // 每10秒打印一次等待状态
+            if (wait % 100 == 0) {
+                ESP_LOGI(TAG, "等待天气获取中... (%d/%d)", wait/10, 30);
+            }
+        }
+
+        if (get_weather_ok()) {
+            ESP_LOGI(TAG, "✅ 天气获取完成，剩余堆: %d bytes", esp_get_free_heap_size());
+        } else {
+            ESP_LOGW(TAG, "⚠️ 天气获取超时，继续启动唤醒词");
+        }
     }
+
+    // 网络任务完成后启动唤醒词
+    ESP_LOGI(TAG, "启动唤醒词任务...");
+    ESP_LOGI(TAG, "  剩余堆: %d bytes", esp_get_free_heap_size());
+    ESP_LOGI(TAG, "  PSRAM: %d bytes", heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+
+    wakeword_init(); 
+
 
     while (1) { 
         // 每秒更新一次时间显示

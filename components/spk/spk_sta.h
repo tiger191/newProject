@@ -7,8 +7,8 @@
 #define AUDIO_I2S_SPK_GPIO_BCLK GPIO_NUM_15  // 位时钟
 #define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_16 // 左右时钟
 
-esp_err_t init_spk(void);
-void start_mic_to_spk(void);
-void stop_mic_to_spk(void);
+esp_err_t init_spk(uint32_t sample_rate, int channel_format, int bits_per_chan);
+esp_err_t spk_play_audio(const uint8_t *audio_data, size_t data_len);
+esp_err_t spk_audio_stop(void);
 
 #endif

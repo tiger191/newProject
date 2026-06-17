@@ -4,141 +4,141 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "mic_sta.h"
-
-//#include "esp_afe.h"
-
 #include "esp_afe_sr_iface.h"
 #include "esp_afe_sr_models.h"
-#include "esp_afe_sr_models.h"
-#include "esp_process_sdkconfig.h" 
-
+#include "esp_process_sdkconfig.h"
 #include "model_path.h"
+
+
+#include <math.h>
 
 #define TAG "wakeword"
 
-static const esp_afe_sr_iface_t *s_afe = NULL;
-static esp_afe_sr_data_t *s_afe_data = NULL;
-
-// 32-bit to 16-bit 转换（INMP441 输出 32-bit，有效数据在高16位）
-static void convert_32bit_to_16bit(int32_t *src, int16_t *dst, int samples)
-{
-    for (int i = 0; i < samples; i++) {
-        dst[i] = (int16_t)(src[i] >> 16);
-    }
-}
-
+static char *s_model_name = NULL;
 
 static void wakeword_task(void *arg)
 {
-    int chunk = s_afe->get_feed_chunksize(s_afe_data);
-
-    // 分配 32-bit 缓冲区读取 I2S 数据
-    int32_t *buf_32bit = malloc(chunk * sizeof(int32_t));
-    // 分配 16-bit 缓冲区给 AFE
-    int16_t *buf_16bit = malloc(chunk * sizeof(int16_t));
-
-        // ========== 这里会打印！==========
-    ESP_LOGI(TAG, "================================");
-    ESP_LOGI(TAG, "✅ 已启动：等待唤醒词 → 你好小智");
-    ESP_LOGI(TAG, "================================");
-
-     if (!buf_32bit || !buf_16bit){
-        ESP_LOGE(TAG, "malloc fail");
-        free(buf_32bit);
-        free(buf_16bit);
-        vTaskDelete(NULL);
+        // 获取唤醒词检测接口
+    esp_wn_iface_t *wakenet = (esp_wn_iface_t *)esp_wn_handle_from_name(s_model_name);
+    if (wakenet == NULL)
+    {
+        ESP_LOGE(TAG, "获取唤醒词接口失败，模型: %s", s_model_name);
         return;
     }
 
-    ESP_LOGI(TAG, "等待唤醒：你好小智");
-
-    while (1) {
-        size_t bytes_read;
-        // 读取 32-bit 数据
-        if (i2s_channel_read(get_mic_handle(), buf_32bit, chunk * sizeof(int32_t), 
-                             &bytes_read, 20) == ESP_OK) {
-            int samples = bytes_read / sizeof(int32_t);
-            // 转换为 16-bit
-            convert_32bit_to_16bit(buf_32bit, buf_16bit, samples);
-            // 喂给 AFE
-            s_afe->feed(s_afe_data, buf_16bit);
-
-            // 取结果
-            afe_fetch_result_t *res = s_afe->fetch(s_afe_data);
-            if (res && res->wake_word_index > 0) {
-                ESP_LOGI(TAG, "✅ 唤醒成功（你好小智）");
-            }
-            //s_afe->free_fetch_result(s_afe_data, res);
-        }
-        vTaskDelay(1);
+        // 创建唤醒词模型数据实例
+    // DET_MODE_90: 检测模式，90%置信度阈值，平衡准确率和误触发率
+    model_iface_data_t *model_data = wakenet->create(s_model_name, DET_MODE_90);
+    if (model_data == NULL)
+    {
+        ESP_LOGE(TAG, "创建唤醒词模型数据失败");
+        return;
     }
-    free(buf_32bit);
-    free(buf_16bit);
+
+    // 获取模型要求的音频数据块大小（样本数 × 每样本字节数）
+    int audio_chunksize = wakenet->get_samp_chunksize(model_data) * sizeof(int16_t);
+
+    // 分配音频数据缓冲区内存
+    int16_t *buffer = (int16_t *)malloc(audio_chunksize);
+    if (buffer == NULL)
+    {
+        ESP_LOGE(TAG, "音频缓冲区内存分配失败，需要 %d 字节", audio_chunksize);
+        ESP_LOGE(TAG, "请检查系统可用内存");
+        return;
+    }
+
+    // 显示系统配置信息
+    ESP_LOGI(TAG, "✓ 系统配置完成:");
+    ESP_LOGI(TAG, "  - 唤醒词模型: %s", s_model_name);
+    ESP_LOGI(TAG, "  - 音频块大小: %d 字节", audio_chunksize);
+    ESP_LOGI(TAG, "  - 检测置信度: 90%%");
+    ESP_LOGI(TAG, "正在启动麦克风唤醒词检测...");
+    ESP_LOGI(TAG, "请对着麦克风说出配置的唤醒词");
+
+    ESP_LOGI(TAG, "启动唤醒任务");
+
+    // ==========主循环 - 实时音频采集与唤醒词检测 ==========
+    while (1)
+    {
+        // 从INMP441麦克风获取一帧音频数据
+        // false参数表示获取处理后的音频数据（非原始通道数据）
+        esp_err_t ret = bsp_get_feed_data(false, buffer, audio_chunksize);
+        if (ret != ESP_OK)
+        {
+            ESP_LOGE(TAG, "麦克风音频数据获取失败: %s", esp_err_to_name(ret));
+            ESP_LOGE(TAG, "请检查INMP441硬件连接");
+            vTaskDelay(pdMS_TO_TICKS(10)); // 等待10ms后重试
+            continue;
+        }
+
+        // 将音频数据送入唤醒词检测算法
+        // 返回检测状态：WAKENET_NO_DETECT(未检测到) 或 WAKENET_DETECTED(检测到)
+        wakenet_state_t state = wakenet->detect(model_data, buffer);
+
+        // 检查是否检测到唤醒词
+        if (state == WAKENET_DETECTED)
+        {
+            ESP_LOGI(TAG, "🎉 检测到唤醒词！");
+
+            // 输出检测结果到串口
+            printf("=== 唤醒词检测成功！模型: %s ===\n", s_model_name);
+            printf("=== Wake word detected! Model: %s ===\n", s_model_name);
+
+
+            // 这里可以添加唤醒后的处理逻辑
+            // 例如：启动语音识别、播放提示音、发送网络请求等
+        }
+
+        // 短暂延时，避免CPU占用过高，同时保证实时性
+        // 1ms延时确保检测的实时性
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+
+        // ========== 资源清理 ==========
+    // 注意：由于主循环是无限循环，以下代码正常情况下不会执行
+    // 仅在程序异常退出时进行资源清理
+    ESP_LOGI(TAG, "正在清理系统资源...");
+
+    // 销毁唤醒词模型数据
+    if (model_data != NULL)
+    {
+        wakenet->destroy(model_data);
+    }
+
+    // 释放音频缓冲区内存
+    if (buffer != NULL)
+    {
+        free(buffer);
+    }
+
+    // 删除当前任务
+    vTaskDelete(NULL);
+
 }
+
 
 void wakeword_init(void)
 {
     ESP_LOGI(TAG, "初始化唤醒词模块...");
 
-    afe_config_t afe_config = AFE_CONFIG_DEFAULT();    
-    
-    // 单麦克风配置，禁用 AEC
-    afe_config.aec_init = false;
-    afe_config.pcm_config.total_ch_num = 1;
-    afe_config.pcm_config.mic_num = 1;
-    afe_config.pcm_config.ref_num = 0;
-    afe_config.pcm_config.sample_rate = 16000;
-
+    // 从模型目录加载所有可用的语音识别模型
     srmodel_list_t *models = esp_srmodel_init("model");
-
-    if (!models || models->num == 0) {
-        ESP_LOGE(TAG, "模型加载失败！");
+    if (models == NULL)
+    {
+        ESP_LOGE(TAG, "语音识别模型初始化失败");
+        ESP_LOGE(TAG, "请检查模型文件是否正确烧录到Flash分区");
         return;
     }
 
-    ESP_LOGI(TAG, "成功加载 %d 个模型：", models->num);
-    for (int i = 0; i < models->num; i++) {
-        ESP_LOGI(TAG, "Model %d: %s", i, models->model_name[i]);
-    }
-
-        // 方案1：使用 ESP-SR 提供的过滤函数（推荐）
-    char *wakenet_model = esp_srmodel_filter(models, "wn9", NULL);
-    
-    if (!wakenet_model) {
-        ESP_LOGE(TAG, "未找到唤醒词模型！尝试使用第一个模型...");
-        if (models->num > 0) {
-            wakenet_model = models->model_name[0];
-        } else {
-            ESP_LOGE(TAG, "没有可用的模型");
-            return;
-        }
-    }
-
-    // 指定唤醒词模型（根据 menuconfig 中选择的模型）
-    // afe_config.wakenet_model_name = "wn9_nihaoxiaozhi_tts";
-
-    afe_config.wakenet_model_name = wakenet_model;
-    ESP_LOGI(TAG, "使用唤醒词模型: %s", afe_config.wakenet_model_name);
-
-    // 打印完整配置
-    ESP_LOGI(TAG, "AFE 配置：");
-    ESP_LOGI(TAG, "  wakenet_model_name: %s", afe_config.wakenet_model_name);
-    ESP_LOGI(TAG, "  aec_init: %d", afe_config.aec_init);
-    ESP_LOGI(TAG, "  total_ch_num: %d", afe_config.pcm_config.total_ch_num);
-    ESP_LOGI(TAG, "  mic_num: %d", afe_config.pcm_config.mic_num);
-    ESP_LOGI(TAG, "  ref_num: %d", afe_config.pcm_config.ref_num);
-    ESP_LOGI(TAG, "  sample_rate: %d", afe_config.pcm_config.sample_rate);
-
-    ESP_LOGI(TAG, "正在创建 AFE 实例...");
-
-    s_afe = &ESP_AFE_SR_HANDLE;
-    s_afe_data = s_afe->create_from_config(&afe_config);
-    if (!s_afe_data) {
-        ESP_LOGE(TAG, "AFE 创建失败，检查 menuconfig 唤醒词配置");
+    // 自动选择sdkconfig中配置的唤醒词模型（如果配置了多个模型则选择以"wn9"开头的模型）
+    s_model_name = esp_srmodel_filter(models, "wn9", NULL);
+    if (s_model_name == NULL) {
+        ESP_LOGE(TAG, "未找到任何唤醒词模型！");
+        ESP_LOGE(TAG, "请确保已正确配置并烧录唤醒词模型文件");
+        ESP_LOGE(TAG, "可通过 'idf.py menuconfig' 配置唤醒词模型");
         return;
     }
 
-    ESP_LOGI(TAG, "AFE 创建成功 → 启动唤醒任务");
-
-    xTaskCreate(wakeword_task, "wakeword", 16384, NULL, 5, NULL);
+    //启动语音识别任务
+    xTaskCreate(wakeword_task, "wakeword", 16384, NULL, 7, NULL);    
 }
